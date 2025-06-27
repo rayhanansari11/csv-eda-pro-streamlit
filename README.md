@@ -53,6 +53,19 @@ reportlab (for PDF)
 
 Pillow (for image support)
 
+📂 Folder Structure
+Copy
+Edit
+csv-eda-pro-streamlit/
+├── app/
+│   └── app.py
+├── images/
+│   ├── background_image.jpg
+│   └── rayhan.jpg
+├── profiling_report.html
+├── LICENSE
+└── README.md
+
 🧠 About the Creator
 👨‍💻 Rayhan Mahmud Ansari
 🎓 CSE, Sylhet Engineering College
