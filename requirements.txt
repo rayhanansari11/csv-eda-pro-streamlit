@@ -6,3 +6,4 @@ matplotlib==3.8.4
 reportlab==4.4.2
 pillow==10.3.0
 ydata-profiling==4.16.1
+missingno==0.5.2
