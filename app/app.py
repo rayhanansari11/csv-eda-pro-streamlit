@@ -12,6 +12,7 @@ from PIL import Image
 import io
 import os
 import base64
+import streamlit.components.v1 as components  # ✅ FIXED: Explicit import
 
 # === Background Image ===
 def set_bg_image(image_path):
@@ -158,7 +159,7 @@ if page == "EDA Tool":
 
         with open("profiling_report.html", "r", encoding="utf-8") as f:
             html_content = f.read()
-            st.components.v1.html(html_content, height=1000, scrolling=True)
+            components.html(html_content, height=1000, scrolling=True)
 
         with open("profiling_report.html", "rb") as f:
             st.download_button("⬇️ Download HTML Profiling Report", f, "profiling_report.html", "text/html")
@@ -176,10 +177,10 @@ elif page == "About":
     [🌐 GitHub](https://github.com/rayhanansari11) | [🔗 LinkedIn](https://www.linkedin.com/in/rayhan-mahmud-ansari-566d/)  
 
     **What this app does:**
-    - 📊 Upload and explore CSV files
-    - 📋 Automatically generate statistics, plots, and correlation
-    - 📑 Full profiling via YData Profiling
-    - 📄 Generate custom PDF report with visuals
+    - 📊 Upload and explore CSV files  
+    - 📋 Automatically generate statistics, plots, and correlation  
+    - 📑 Full profiling via YData Profiling  
+    - 📄 Generate custom PDF report with visuals  
 
     **Tech used:** Streamlit, Pandas, Seaborn, Matplotlib, YData Profiling, ReportLab
     """)
