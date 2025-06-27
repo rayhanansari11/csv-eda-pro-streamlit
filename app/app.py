@@ -14,6 +14,9 @@ import os
 import base64
 import re
 import streamlit.components.v1 as components
+import missingno as msno
+from scipy.stats import zscore
+import tempfile
 
 # === Background Image ===
 def set_bg_image(image_path):
@@ -79,7 +82,7 @@ def generate_pdf(df, stats, missing, duplicates, plot_files):
     buffer.seek(0)
     return buffer
 
-# === Plot Generator ===
+# === Plot Generator (no auto-saving) ===
 def generate_eda_plots(df):
     plot_files = []
     num_cols = df.select_dtypes(include=np.number).columns
@@ -90,26 +93,26 @@ def generate_eda_plots(df):
         fig, ax = plt.subplots()
         sns.histplot(df[col], kde=True, ax=ax)
         ax.set_title(f'Histogram: {col}')
-        fname = f"hist_{safe_col}.png"
-        fig.savefig(fname)
-        plot_files.append(fname)
+        tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        fig.savefig(tmpfile.name)
+        plot_files.append(tmpfile.name)
         plt.close(fig)
 
         fig, ax = plt.subplots()
         sns.boxplot(x=df[col], ax=ax)
         ax.set_title(f'Boxplot: {col}')
-        fname = f"box_{safe_col}.png"
-        fig.savefig(fname)
-        plot_files.append(fname)
+        tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        fig.savefig(tmpfile.name)
+        plot_files.append(tmpfile.name)
         plt.close(fig)
 
     if len(num_cols) >= 2:
         fig, ax = plt.subplots(figsize=(6, 4))
         sns.heatmap(df[num_cols].corr(), annot=True, cmap="coolwarm", ax=ax)
         ax.set_title("Correlation Heatmap")
-        fname = "correlation_heatmap.png"
-        fig.savefig(fname)
-        plot_files.append(fname)
+        tmpfile = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+        fig.savefig(tmpfile.name)
+        plot_files.append(tmpfile.name)
         plt.close(fig)
 
     return plot_files
@@ -127,6 +130,28 @@ if page == "EDA Tool":
     if file:
         df = pd.read_csv(file)
 
+        # === Dynamic Filtering ===
+        st.subheader("🔍 Dynamic Data Filtering")
+        with st.expander("Apply Filters"):
+            filters = {}
+            for col in df.columns:
+                if df[col].dtype == 'object':
+                    options = df[col].dropna().unique().tolist()
+                    selected = st.multiselect(f"Filter {col}", options)
+                    if selected:
+                        filters[col] = selected
+                else:
+                    min_val, max_val = float(df[col].min()), float(df[col].max())
+                    selected_range = st.slider(f"Filter {col}", min_val, max_val, (min_val, max_val))
+                    filters[col] = selected_range
+
+            for key, val in filters.items():
+                if isinstance(val, list):
+                    df = df[df[key].isin(val)]
+                else:
+                    df = df[(df[key] >= val[0]) & (df[key] <= val[1])]
+
+        # === Basic Info ===
         st.subheader("\U0001F50D Basic Information")
         st.write(df.head())
         st.write(f"**Shape:** {df.shape}")
@@ -137,6 +162,7 @@ if page == "EDA Tool":
         df.info(buf=buffer)
         st.text(buffer.getvalue())
 
+        # === Data Quality ===
         st.subheader("\u2705 Data Quality Checks")
         st.write("**Missing Values:**")
         missing = df.isnull().sum()
@@ -144,15 +170,74 @@ if page == "EDA Tool":
         duplicates = df.duplicated().sum()
         st.write(f"**Duplicate Rows:** {duplicates}")
 
+        # === Stats ===
         st.subheader("\U0001F4C8 Descriptive Statistics")
         stats = df.describe()
         st.write(stats)
 
+        # === Aggregation Summary ===
+        st.subheader("🧮 Aggregation Summary")
+        num_cols = df.select_dtypes(include=np.number).columns.tolist()
+        group_cols = st.multiselect("Group by", df.columns)
+        if group_cols:
+            agg_func = st.selectbox("Aggregation Function", ["mean", "sum", "median", "min", "max"])
+            agg_df = df.groupby(group_cols)[num_cols].agg(agg_func)
+            st.dataframe(agg_df)
+
+        # === Visual Explorer ===
+        st.subheader("📊 Visual Explorer")
+        x_axis = st.selectbox("X-axis", df.columns)
+        y_axis = st.selectbox("Y-axis", df.columns)
+        chart_type = st.radio("Chart Type", ["Scatter", "Bar", "Line"])
+
+        if chart_type == "Scatter":
+            chart = alt.Chart(df).mark_circle(size=60).encode(x=x_axis, y=y_axis, tooltip=df.columns.tolist()).interactive()
+        elif chart_type == "Bar":
+            chart = alt.Chart(df).mark_bar().encode(x=x_axis, y=y_axis)
+        else:
+            chart = alt.Chart(df).mark_line().encode(x=x_axis, y=y_axis)
+        st.altair_chart(chart, use_container_width=True)
+
+        # === Plots ===
         st.subheader("\U0001F4C9 Distributions & Outliers")
         plot_files = generate_eda_plots(df)
         for plot in plot_files:
             st.image(plot)
 
+        # === Missing Matrix ===
+        st.subheader("🧩 Missing Value Matrix")
+        fig = msno.matrix(df)
+        st.pyplot(fig.figure)
+
+        # === Trend & Forecast ===
+        st.subheader("📈 Trend & Forecast (Beta)")
+        text_cols = df.select_dtypes(include=['object']).columns
+        if len(text_cols) > 0 and len(num_cols) > 0:
+            date_col = st.selectbox("Select Date Column", text_cols)
+            target_col = st.selectbox("Target Column", num_cols)
+            try:
+                df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+                trend_df = df[[date_col, target_col]].dropna().sort_values(date_col)
+                trend_df = trend_df.groupby(date_col).mean().reset_index()
+
+                chart = alt.Chart(trend_df).mark_line().encode(
+                    x=date_col,
+                    y=target_col,
+                    tooltip=[date_col, target_col]
+                ).interactive()
+                st.altair_chart(chart, use_container_width=True)
+            except Exception as e:
+                st.error(f"⚠️ Could not generate trend chart: {e}")
+
+        # === Outlier Detection ===
+        st.subheader("🚨 Outlier Detection (Z-Score)")
+        z_threshold = st.slider("Z-Score Threshold", 2.0, 5.0, 3.0)
+        z_scores = df[num_cols].apply(zscore)
+        outliers = (np.abs(z_scores) > z_threshold).any(axis=1)
+        st.write(f"Found {outliers.sum()} outliers")
+        st.dataframe(df[outliers])
+
+        # === PDF Download ===
         st.subheader("\U0001F4CB Download PDF Report")
         pdf_bytes = generate_pdf(df, stats, missing, duplicates, plot_files)
         st.download_button("\U0001F4C4 Download EDA Report (PDF)", pdf_bytes, "eda_report.pdf", "application/pdf")
@@ -160,6 +245,7 @@ if page == "EDA Tool":
         for file in plot_files:
             os.remove(file)
 
+        # === YData Profiling ===
         st.subheader("\U0001F4D1 Automated Profiling Report")
         profile = ProfileReport(df, title="Pandas Profiling Report", explorative=True)
         profile.to_file("profiling_report.html")
