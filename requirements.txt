@@ -4,5 +4,5 @@ numpy==1.26.4
 seaborn==0.13.2
 matplotlib==3.8.4
 reportlab==4.4.2
-pillow==11.2.1
+pillow==10.3.0
 ydata-profiling==4.16.1
