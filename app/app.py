@@ -12,7 +12,8 @@ from PIL import Image
 import io
 import os
 import base64
-import streamlit.components.v1 as components  # ✅ FIXED: Explicit import
+import re
+import streamlit.components.v1 as components
 
 # === Background Image ===
 def set_bg_image(image_path):
@@ -35,6 +36,10 @@ def set_bg_image(image_path):
 
 set_bg_image("images/background_image.jpg")
 
+# === Sanitize filenames ===
+def sanitize_filename(name):
+    return re.sub(r'[\\/*?:"<>|\s]', "_", str(name))
+
 # === PDF Report Generator ===
 def generate_pdf(df, stats, missing, duplicates, plot_files):
     buffer = io.BytesIO()
@@ -43,7 +48,7 @@ def generate_pdf(df, stats, missing, duplicates, plot_files):
     y = height - 50
 
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y, "📊 AI-Powered Data Report")
+    c.drawString(50, y, "\U0001F4CA AI-Powered Data Report")
     y -= 40
 
     c.setFont("Helvetica", 12)
@@ -80,10 +85,12 @@ def generate_eda_plots(df):
     num_cols = df.select_dtypes(include=np.number).columns
 
     for col in num_cols:
+        safe_col = sanitize_filename(col)
+
         fig, ax = plt.subplots()
         sns.histplot(df[col], kde=True, ax=ax)
         ax.set_title(f'Histogram: {col}')
-        fname = f"hist_{col}.png"
+        fname = f"hist_{safe_col}.png"
         fig.savefig(fname)
         plot_files.append(fname)
         plt.close(fig)
@@ -91,7 +98,7 @@ def generate_eda_plots(df):
         fig, ax = plt.subplots()
         sns.boxplot(x=df[col], ax=ax)
         ax.set_title(f'Boxplot: {col}')
-        fname = f"box_{col}.png"
+        fname = f"box_{safe_col}.png"
         fig.savefig(fname)
         plot_files.append(fname)
         plt.close(fig)
@@ -113,14 +120,14 @@ page = st.sidebar.radio("Go to", ["EDA Tool", "About"])
 
 # === EDA Tool ===
 if page == "EDA Tool":
-    st.title("📊 Advanced EDA + PDF + Profiling")
+    st.title("\U0001F4CA Advanced EDA + PDF + Profiling")
     st.write("Upload your CSV file and explore your data with auto EDA, profiling, and downloadable reports.")
 
     file = st.file_uploader("Upload CSV", type=['csv'])
     if file:
         df = pd.read_csv(file)
 
-        st.subheader("🔍 Basic Information")
+        st.subheader("\U0001F50D Basic Information")
         st.write(df.head())
         st.write(f"**Shape:** {df.shape}")
         st.write("**Data Types:**")
@@ -130,30 +137,30 @@ if page == "EDA Tool":
         df.info(buf=buffer)
         st.text(buffer.getvalue())
 
-        st.subheader("✅ Data Quality Checks")
+        st.subheader("\u2705 Data Quality Checks")
         st.write("**Missing Values:**")
         missing = df.isnull().sum()
         st.write(missing[missing > 0])
         duplicates = df.duplicated().sum()
         st.write(f"**Duplicate Rows:** {duplicates}")
 
-        st.subheader("📈 Descriptive Statistics")
+        st.subheader("\U0001F4C8 Descriptive Statistics")
         stats = df.describe()
         st.write(stats)
 
-        st.subheader("📉 Distributions & Outliers")
+        st.subheader("\U0001F4C9 Distributions & Outliers")
         plot_files = generate_eda_plots(df)
         for plot in plot_files:
             st.image(plot)
 
-        st.subheader("📋 Download PDF Report")
+        st.subheader("\U0001F4CB Download PDF Report")
         pdf_bytes = generate_pdf(df, stats, missing, duplicates, plot_files)
-        st.download_button("📄 Download EDA Report (PDF)", pdf_bytes, "eda_report.pdf", "application/pdf")
+        st.download_button("\U0001F4C4 Download EDA Report (PDF)", pdf_bytes, "eda_report.pdf", "application/pdf")
 
         for file in plot_files:
             os.remove(file)
 
-        st.subheader("📑 Automated Profiling Report")
+        st.subheader("\U0001F4D1 Automated Profiling Report")
         profile = ProfileReport(df, title="Pandas Profiling Report", explorative=True)
         profile.to_file("profiling_report.html")
 
@@ -162,25 +169,25 @@ if page == "EDA Tool":
             components.html(html_content, height=1000, scrolling=True)
 
         with open("profiling_report.html", "rb") as f:
-            st.download_button("⬇️ Download HTML Profiling Report", f, "profiling_report.html", "text/html")
+            st.download_button("\u2B07\uFE0F Download HTML Profiling Report", f, "profiling_report.html", "text/html")
 
 # === About Section ===
 elif page == "About":
-    st.title("👨‍💻 About This App")
+    st.title("\U0001F468\u200D\U0001F4BB About This App")
 
     st.image("images/rayhan.jpg", width=150)
 
     st.markdown("""
     **Creator:** Rayhan Mahmud Ansari  
-    🎓 Dept. of CSE, Sylhet Engineering College  
-    📧 rayhan_mahmud@sec.ac.bd  
-    [🌐 GitHub](https://github.com/rayhanansari11) | [🔗 LinkedIn](https://www.linkedin.com/in/rayhan-mahmud-ansari-566d/)  
+    \U0001F393 Dept. of CSE, Sylhet Engineering College  
+    \U0001F4E7 rayhan_mahmud@sec.ac.bd  
+    [\U0001F310 GitHub](https://github.com/rayhanansari11) | [\U0001F517 LinkedIn](https://www.linkedin.com/in/rayhan-mahmud-ansari-566d/)  
 
     **What this app does:**
-    - 📊 Upload and explore CSV files  
-    - 📋 Automatically generate statistics, plots, and correlation  
-    - 📑 Full profiling via YData Profiling  
-    - 📄 Generate custom PDF report with visuals  
+    - \U0001F4CA Upload and explore CSV files  
+    - \U0001F4CB Automatically generate statistics, plots, and correlation  
+    - \U0001F4D1 Full profiling via YData Profiling  
+    - \U0001F4C4 Generate custom PDF report with visuals  
 
     **Tech used:** Streamlit, Pandas, Seaborn, Matplotlib, YData Profiling, ReportLab
     """)
